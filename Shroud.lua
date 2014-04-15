@@ -3,12 +3,12 @@ local L = LibStub("AceLocale-3.0"):GetLocale("Shroud", false);
 _G.Shroud = Shroud
 
 Shroud.VERSION = 10101
-Shroud.DEBUG = true
+Shroud.DEBUG = false
 
 -- By default we just use RAID_CLASS_COLORS as class colors.
 Shroud.CLASS_COLORS = RAID_CLASS_COLORS
 
-local RaidVersions = {}
+local RaidInfo = {}
 local VersionTimer
 
 function debug(...)
@@ -41,13 +41,10 @@ end
 function Shroud:OnCommReceived(prefix, message, distribution, sender)
     local args = {Shroud:GetArgs(message, 10, 1) }
 
-    if (args[1] == "check-version") then
-        debug("Reporting version to %s.", sender)
-        Shroud:SendCommMessage("shroud", "my-version " .. Shroud.VERSION, "WHISPER", sender)
-    elseif (args[1] == "my-version") then
+    if (args[1] == "my-info") then
         local type, count = Shroud:GetGroupComposition()
-        RaidVersions[sender] = {}
-        RaidVersions[sender].version = tonumber(args[2])
+        RaidInfo[sender] = {}
+        RaidInfo[sender].version = tonumber(args[2])
 
         if (#RaidVersions == (count - 1)) then
             Shroud:ReportShroudVersions(true)
@@ -57,27 +54,21 @@ end
 
 function Shroud:OnSlashCommand(input)
     if (input == "ver" or input == "version") then
-        local type,count = self:GetGroupComposition()
-        if (count > 1) then
-            if (#RaidVersions == 0) then
-                debug("Checking with the raid.")
-                VersionTimer = Shroud:ScheduleTimer("ReportShroudVersions", 2, true)
-                Shroud:SendCommMessage("shroud", "check-version", type)
-            end
-        else
-            self:ReportShroudVersions(false)
-        end
+        Shroud:PrintShroudVersions()
     end
 end
 
 function Shroud:OnInitialize()
     ShroudPerCharDB = ShroudPerCharDB or {}
-    self.db = ShroudPerCharDB
-    self:RegisterChatCommand("shroud", "OnSlashCommand")
-    self:RegisterComm("shroud")
+    Shroud.db = ShroudPerCharDB
+    Shroud:RegisterChatCommand("shroud", "OnSlashCommand")
+    Shroud:RegisterComm("shroud")
+    Shroud:TimedGroupInfoUpdate()
+    VersionTimer = Shroud:ScheduleRepeatingTimer("TimedGroupInfoUpdate", 30)
 end
 
 function Shroud:OnEnable()
+    debug("OnEnable")
     if type(CUSTOM_CLASS_COLORS) == "table" then
         Shroud.CLASS_COLORS = CUSTOM_CLASS_COLORS
     end
@@ -86,14 +77,13 @@ end
 function Shroud:OnDisable()
 end
 
-function Shroud:ReportShroudVersions(incoming)
+function Shroud:PrintShroudVersions()
     local myOutOfDate = ""
     local missing = 0
-    local outOfDate = 0
-    if (incoming == true) then
-        Shroud:CancelTimer(VersionTimer)
+    local outOfDate = {}
+    if (#RaidVersions > 0) then
 
-        local type,count = self:GetGroupComposition()
+        local type,count = Shroud:GetGroupComposition()
         count = count - 1
         missing = count - #RaidVersions
         outOfDate = Shroud:FilterTable(RaidVersions, function (player)
@@ -105,7 +95,17 @@ function Shroud:ReportShroudVersions(incoming)
         local good = count - (#outOfDate + missing)
     end
 
-    self:Printf("You are using version r%s.%s", Shroud.VERSION, myOutOfDate)
-    if (#outOfDate > 0) then self:Printf("%d player(s) are out of date.", #outOfDate) end
-    if (missing > 0) then self:Printf("%d player(s) did not answer.", missing) end
+    Shroud:Printf("You are using version r%s.%s", Shroud.VERSION, myOutOfDate)
+    if (#outOfDate > 0) then Shroud:Printf("%d player(s) are out of date.", #outOfDate) end
+    if (missing > 0) then Shroud:Printf("%d player(s) did not answer.", missing) end
+end
+
+function Shroud:TimedGroupInfoUpdate()
+    local type,count = Shroud:GetGroupComposition()
+
+    if (count > 1) then
+        debug("Reporting version to the %s.", type)
+        local message = string.format("my-info %d %d", Shroud.VERSION)
+        Shroud:SendCommMessage("shroud", "my-info" .. Shroud.VERSION, type)
+    end
 end
