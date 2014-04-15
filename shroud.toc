@@ -1,0 +1,20 @@
+## Interface: 50400
+## Title: Shroud Loot
+## Notes: Allows master looters to mange loot according to the Shroud system.
+## Author: kkragenbrink
+## Version: 0.1.0
+## OptionalDeps: Ace3
+## SavedVariablesPerCharacter: ShroudPerCharDB
+## X-Curse-Project-Name: Shroud
+## X-Curse-Project-ID: shroud
+## X-Curse-Repository-ID: wow/shroud/mainline
+## X-License: MIT/X
+## X-Category: Guild
+
+#@no-lib-strip@
+embeds.xml
+#@end-no-lib-strip@
+
+locale\enUS.lua
+
+Shroud.lua
