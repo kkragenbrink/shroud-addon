@@ -2,13 +2,20 @@ local Shroud = LibStub("AceAddon-3.0"):NewAddon("Shroud", "AceConsole-3.0", "Ace
 local L = LibStub("AceLocale-3.0"):GetLocale("Shroud", false);
 _G.Shroud = Shroud
 
-Shroud.VERSION = 10100
+Shroud.VERSION = 10101
+Shroud.DEBUG = true
 
 -- By default we just use RAID_CLASS_COLORS as class colors.
 Shroud.CLASS_COLORS = RAID_CLASS_COLORS
 
 local RaidVersions = {}
 local VersionTimer
+
+function debug(...)
+    if (Shroud.DEBUG) then
+        Shroud:Printf(...)
+    end
+end
 
 function Shroud:FilterTable(t, filterIter)
     local out = {}
@@ -35,13 +42,14 @@ function Shroud:OnCommReceived(prefix, message, distribution, sender)
     local args = {Shroud:GetArgs(message, 10, 1) }
 
     if (args[1] == "check-version") then
+        debug("Reporting version to %s.", sender)
         Shroud:SendCommMessage("shroud", "my-version " .. Shroud.VERSION, "WHISPER", sender)
     elseif (args[1] == "my-version") then
         local type, count = Shroud:GetGroupComposition()
         RaidVersions[sender] = {}
-        RaidVersions[sender].version = args[2]
+        RaidVersions[sender].version = tonumber(args[2])
 
-        if (count == #RaidVersions) then
+        if (#RaidVersions == (count - 1)) then
             Shroud:ReportShroudVersions(true)
         end
     end
@@ -52,7 +60,7 @@ function Shroud:OnSlashCommand(input)
         local type,count = self:GetGroupComposition()
         if (count > 1) then
             if (#RaidVersions == 0) then
-                Shroud:Print("Checking with the raid.")
+                debug("Checking with the raid.")
                 VersionTimer = Shroud:ScheduleTimer("ReportShroudVersions", 2, true)
                 Shroud:SendCommMessage("shroud", "check-version", type)
             end
@@ -80,23 +88,24 @@ end
 
 function Shroud:ReportShroudVersions(incoming)
     local myOutOfDate = ""
+    local missing = 0
+    local outOfDate = 0
     if (incoming == true) then
         Shroud:CancelTimer(VersionTimer)
 
         local type,count = self:GetGroupComposition()
-        local missing = count - #RaidVersion
-        local outOfDate = Shroud:FilterTable(RaidVersions, function (v, k, t)
-            if (v > Shroud.version) then
+        count = count - 1
+        missing = count - #RaidVersions
+        outOfDate = Shroud:FilterTable(RaidVersions, function (player)
+            if (player.version > Shroud.VERSION) then
                 myOutOfDate = " Your version is out of date!"
             end
-            return v < Shroud.Version
+            return player.version < Shroud.VERSION
         end)
-        local good = count - (outOfDate + missing)
+        local good = count - (#outOfDate + missing)
     end
 
     self:Printf("You are using version r%s.%s", Shroud.VERSION, myOutOfDate)
-    if (incoming == true) then
-        self:Printf("%d player(s) are out of date.", outOfDate)
-        self:Printf("%d player(s) did not answer.", missing)
-    end
+    if (#outOfDate > 0) then self:Printf("%d player(s) are out of date.", #outOfDate) end
+    if (missing > 0) then self:Printf("%d player(s) did not answer.", missing) end
 end
