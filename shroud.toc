@@ -18,3 +18,7 @@ embeds.xml
 locale\enUS.lua
 
 Shroud.lua
+
+Commands.lua
+Messages.lua
+Options.lua
