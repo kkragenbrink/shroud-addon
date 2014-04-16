@@ -16,6 +16,58 @@ function Shroud:debug(...)
     end
 end
 
+local RELEVANT_INVENTORY_SLOTS = {1,2,3,5,6,7,8,9,10,11,12,13,14,15,16,17 }
+local ENCHANTABLE_INVENTORY_SLOTS = {[3]=true,[5]=true,[7]=true,[8]=true,[9]=true,[10]=true,[15]=true}
+local ENCHANTER_ADDITIONAL_SLOTS = {[11]=true,[12]=true }
+local PROFESSIONS = {["Blacksmithing"]=164,["Enchanting"]=333,["Engineering"]=202}
+function Shroud:AuditMyInventory()
+    local missingEnchantmentSlots = {}
+    local missingGemSlots = {}
+    local prof1, prof2 = GetProfessions()
+    local _, _, _, _, _, _, sl1 = GetProfessionInfo(prof1)
+    local _, _, _, _, _, _, sl2 = GetProfessionInfo(prof2)
+
+    for _, slot in RELEVANT_INVENTORY_SLOTS do
+        local link = GetInventoryItemLink("player", slot)
+        local itemId, enchantId, gem1, gem2, gem3, gem4 = link:match("item:(%d+):(%d+):(%d+):(%d+):(%d+):(%d+)")
+        -- local countSockets = GetNumSockets(itemId)
+        local gems = 0
+
+        if (gem4 > 0) then gems = 4
+        elseif (gem3 > 0) then gems = 3
+        elseif (gem2 > 0) then gems = 2
+        elseif (gem1 > 0) then gems = 1 end
+
+        -- Enchantment
+        if (Shroud:Contains(ENCHANTABLE_INVENTORY_SLOTS, slot) and enchantId == 0) then
+            table.insert(missingEnchantmentSlots, slot)
+        end
+
+        -- Enchanters get extra slots
+        if ((sl1 == PROFESSIONS["Enchanting"] or sl2 == PROFESSIONS["Enchanting"]) and Shroud:Contains(ENCHANTER_ADDITIONAL_SLOTS, slot) and enchantId == 0) then
+            table.insert(missingEnchantmentSlots, slot)
+        end
+
+        -- Engineers get extra slots, but they cannot be detected easily and are going away, so we're just going to IGNORE THIS LA LA LA
+
+        -- Gems
+        -- if (countSockets > gems) then
+        --     table.insert(missingGemSlots, slot)
+        -- end
+
+        -- Blacksmiths get extra slots
+        -- if(sl1 == PROFESSIONS["Blacksmithing"] or sl2 == PROFESSIONS["Blackmsithing"]) and Shroud:Contains(BLACKSMITHING_ADDITIONAL_SLOTS, slot) and countSockets + 1 > gems) then
+        --     table.insert(missingGemSlots, slot)
+        -- end
+    end
+
+    return #missingEnchantmentSlots, #missingGemSlots
+end
+
+function Shroud:Contains(t, key)
+    return t[key] ~= nil
+end
+
 function Shroud:FilterTable(t, filterIter)
     local out = {}
     for k, v in pairs(t) do
@@ -122,11 +174,14 @@ function Shroud:ParseArgs(input)
 end
 
 function Shroud:TimedGroupInfoUpdate()
-    local type,count = Shroud:GetGroupComposition()
-
     if (count > 1) then
-        Shroud:debug("Reporting version %d to the %s.", Shroud.VERSION, type)
-        local message = string.format("MyInfo %d", Shroud.VERSION)
+        local type,count = Shroud:GetGroupComposition()
+        local _, ilvl = GetAverageItemLevel()
+        local missingEnchants, missingGems = Shroud:AuditMyInventory()
+
+        Shroud:debug("Reporting info the %s.", Shroud.VERSION, type)
+
+        local message = string.format("MyInfo %d %d %d %d", Shroud.VERSION, ilvl, missingEnchants, missingGems)
         Shroud:SendCommMessage("shroud", message, type)
     end
 end
